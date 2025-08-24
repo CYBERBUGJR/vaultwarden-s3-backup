@@ -105,7 +105,7 @@ function upload() {
 
 
     #update lifecycle configuration
-    sed "s/RETENTION/${RETENTION_DAYS}/g;" lifecycle.json.tmpl > lifecycle.json
+    envsubst < lifecycle.json.tmpl > lifecycle.json
     aws s3api put-bucket-lifecycle-configuration --bucket $S3_BUCKET --endpoint-url $S3_ENDPOINT --lifecycle-configuration file://lifecycle.json
 
     echo "Uploading dump to bucket $S3_BUCKET"

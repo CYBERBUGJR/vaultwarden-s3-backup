@@ -1,11 +1,13 @@
 {
     "Rules": [
         {
-            "ID": "retention-backup",
+            "ID": "retention-backup-bitwarden",
             "Status": "Enabled", 
-            "Filter": {},
+            "Filter": {
+                "Prefix": "${S3_PREFIX}"
+            },
             "Expiration": {
-                "Days": RETENTION
+                "Days": ${RETENTION}
             }
         }
     ]

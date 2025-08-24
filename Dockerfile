@@ -1,22 +1,16 @@
-FROM alpine:3.16
+FROM alpine:latest
 
-RUN apk -v --update add \
-        python3 \
-        py-pip \
+RUN apk -q --no-cache --update add \
         groff \
         less \
         curl \
-        py-crcmod \
         bash \
         libc6-compat \
         gnupg \
         coreutils \        
         gzip \
         sqlite \        
-        && \
-    pip3 install --upgrade awscli s3cmd python-magic six && \
-#    apk -v --purge del py-pip && \
-    rm /var/cache/apk/*
+        aws-cli 
 
 RUN addgroup -S cloudbackup && adduser -S cloudbackup -G cloudbackup -u 1000
 RUN mkdir /cloudbackup && chown -Rf cloudbackup:cloudbackup /cloudbackup
