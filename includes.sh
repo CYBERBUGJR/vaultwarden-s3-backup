@@ -4,12 +4,10 @@ set -o pipefail
 
 function init_env() {
 
-    BACKUP_DIR="/cloudbackup"
-    DATA_DIR="${DATA_DIR:-"/data"}"
-
-    #DATA_DB
+    #DATA_DIR
+    DATA_DIR="/data"
+    # DATA_DB
     DATA_DB="${DATA_DIR}/db.sqlite3"
-
     # DATA_CONFIG
     DATA_CONFIG="${DATA_DIR}/config.json"
 

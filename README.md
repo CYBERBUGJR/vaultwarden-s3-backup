@@ -92,6 +92,8 @@ spec:
               value: bitwarden
             - name: AGE_KEY_FILE
               value: /app/.age.key
+            - name: RETENTION
+              value: '20'
             volumeMounts:
             - mountPath: "/data"
               name: data
