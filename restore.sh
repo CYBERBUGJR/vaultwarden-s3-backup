@@ -2,6 +2,7 @@
 
 . ./includes.sh
 
+
 function check() {
 
     if [[ ! -d "${DATA_DIR}" ]]; then
@@ -12,7 +13,7 @@ function check() {
 
 function get_backup() {
 
-    list=$(aws s3 ls s3://$S3_BUCKET/$S3_PREFIX/ $AWS_ARGS | grep -wv PRE | sort -r | awk '{ print $4 }')
+    list=$(aws s3 ls s3://$S3_BUCKET/$S3_PREFIX/ | grep -wv PRE | sort -r | awk '{ print $4 }')
     echo "Select a backup to restore" 
     select file in $list
     do
@@ -20,7 +21,9 @@ function get_backup() {
         break;
     done
     echo "Fetching ${file} from S3"
-    aws s3 cp s3://$S3_BUCKET/$S3_PREFIX/$file ${BACKUP_DIR}/restore.tar.gz $AWS_ARGS
+    aws s3 cp s3://$S3_BUCKET/$S3_PREFIX/$file ${BACKUP_DIR}/${file} $AWS_ARGS
+    # Decrypt archive
+    age -d -i "${AGE_KEY_FILE}" -o "${BACKUP_DIR}/restore.tar.gz" "${BACKUP_DIR}/${file}"
 }
 
 function restore_backup() {

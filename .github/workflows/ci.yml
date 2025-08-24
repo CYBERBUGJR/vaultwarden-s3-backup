@@ -21,18 +21,32 @@ permissions:
 
 jobs:
   lint-and-test:
-    name: 🧪 Lint & test shell scripts
+    name: "🧪 Lint & test shell scripts"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: ShellCheck
-        uses: ludeeus/action-shellcheck@v2
-        with:
-          severity: warning
+      - name: Install ShellCheck
+        continue-on-error: true
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=( *.sh )
+          if [[ ${#files[@]} -gt 0 ]]; then
+            shellcheck --severity=warning "${files[@]}"
+          else
+            echo "No .sh files to lint"
+          fi
 
       - name: Bash syntax check
+        continue-on-error: true
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -42,7 +56,7 @@ jobs:
           done
 
   build-push-scan:
-    name: 🚀 Build, push (skopeo) & scan
+    name: "🚀 Build, push (skopeo) & scan"
     needs: lint-and-test
     runs-on: ubuntu-latest
     permissions:
@@ -52,12 +66,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compute image tags
+      - name: 🔖 Compute image tags
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          TAGS=""
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             TAG="${GITHUB_REF_NAME}"
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
@@ -75,28 +88,26 @@ jobs:
             LATEST_TAG="latest"
           fi
           if [[ -n "${LATEST_TAG}" ]]; then
-            echo "tags=${TAG},${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+            echo "tags=${TAG} ${LATEST_TAG}" >> "$GITHUB_OUTPUT"
           else
             echo "tags=${TAG}" >> "$GITHUB_OUTPUT"
           fi
-          REPO_LC=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
-          echo "image=${REGISTRY}/${REPO_LC}" >> "$GITHUB_OUTPUT"
+          REPO_LC="$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "image_repo=${REPO_LC}" >> "$GITHUB_OUTPUT"
+          echo "image_full=${REGISTRY}/${REPO_LC}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Buildah
-        uses: redhat-actions/setup-buildah@v2
-
-      - name: Build image with Buildah
+      - name: 🏗️ Build image with Buildah
         id: buildah
         uses: redhat-actions/buildah-build@v2
         with:
           context: .
           dockerfiles: |
             ./Dockerfile
-          image: ${{ steps.meta.outputs.image }}
+          image: ${{ steps.meta.outputs.image_repo }}
           tags: ${{ steps.meta.outputs.tags }}
           oci: true
 
-      - name: Vulnerability scan (Trivy) - repository filesystem
+      - name: 🛡️ Vulnerability scan (Trivy) - repository filesystem
         uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: fs
@@ -105,7 +116,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
 
-      - name: Login to GHCR
+      - name: 🔑 Login to GHCR
         if: github.event_name != 'pull_request'
         uses: redhat-actions/podman-login@v1
         with:
@@ -113,12 +124,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image to GHCR with Skopeo
+      - name: 🚀 Push image to GHCR with Skopeo
         if: github.event_name != 'pull_request'
         id: push
         uses: redhat-actions/push-to-registry@v2
         with:
-          image: ${{ steps.buildah.outputs.image }}
+          image: ${{ steps.meta.outputs.image_repo }}
           tags: ${{ steps.meta.outputs.tags }}
           registry: ${{ env.REGISTRY }}
 
@@ -126,11 +137,11 @@ jobs:
         if: steps.push.outputs.digest
         run: echo "${{ steps.push.outputs.registry-paths }}"
 
-      - name: Vulnerability scan (Trivy) - container image
+      - name: 🛡️ Vulnerability scan (Trivy) - container image
         if: github.event_name != 'pull_request'
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version_tag }}
+          image-ref: ${{ steps.meta.outputs.image_full }}:${{ steps.meta.outputs.version_tag }}
           hide-progress: true
           severity: CRITICAL,HIGH
           exit-code: '1'

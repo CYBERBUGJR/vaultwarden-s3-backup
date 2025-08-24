@@ -1,22 +1,20 @@
 # vaultwarden-s3-backup
 Backup Vaultwarden (with SQLITE) to S3. Also backups rsa-keys, attachments, sends, etc.
+Adapted for l0rd.be env.
 
-## Basic usage
 
-```sh
-$ docker run -e S3_ACCESS_KEY_ID=key -e S3_SECRET_ACCESS_KEY=secret -e S3_BUCKET=my-bucket -e S3_PREFIX=backup -e S3_ENDPOINT=https://s3.*** -v /vaultwarden-data:/data  vaultwarden-s3-backup
-```
 
 ## Environment variables
 
 - `DATA_DIR` Directory where all vaultwarden-data is stored (default: '/data')
+- `AGE_KEY_FILE` your age key file for encryption *required* 
 - `S3_ACCESS_KEY_ID` your AWS access key *required*
 - `S3_SECRET_ACCESS_KEY` your AWS secret key *required*
 - `S3_BUCKET` your AWS S3 bucket path *required*
+- `AWS_REGION` your AWS region (default: eu-west-1)
 - `S3_PREFIX` path prefix in your bucket (default: 'backup')
-- `S3_ENDPOINT` the AWS Endpoint URL, for S3 Compliant APIs such as [minio](https://minio.io) (default: none)
 - `S3_S3V4` set to `yes` to enable AWS Signature Version 4, required for [minio](https://minio.io) servers (default: no)
-- `RETENTION_DAYS` Defines a bucket-policy in S3
+  `RETENTION` Defines a bucket-policy in S3
 
 ## Restoring
 Restoring is possbible ,too ;-) Restoring is an interactive job, so it has to be done like this
@@ -38,31 +36,36 @@ This can be achieved by running the backup-pod on the same host as the vaultward
 
 Create secret for S3-Credentials
 
-```
+```bash
 mkdir secrets
-cd secrets
+pushd secrets
 echo -n 'ACCESS' > S3_ACCESS_KEY_ID
 echo -n 'SECRET' > S3_SECRET_ACCESS_KEY
 echo -n 'BUCKET' > S3_BUCKET
-kubectl -n NAMESPACE create secret generic s3-backup \
+echo -n 'REGION' > AWS_REGION
+kubectl -n bitwarden create secret generic s3-backup \
     --from-file=./S3_ACCESS_KEY_ID \
     --from-file=./S3_SECRET_ACCESS_KEY \
-    --from-file=./S3_BUCKET
-cd ..    
+    --from-file=./S3_BUCKET \
+    --from-file=./AWS_REGION
+popd
+podman run --rm alpine /bin/sh -c "apk add -qq age ; age-keygen" > age-keys
+kubectl -n bitwarden create secret generic bitwarden-age-keys --from-file=.age.key=./age-keys
+rm -f ./age-keys
 rm -rf ./secrets
 ```
 
 Create Kubernetes Cronjob (here is one that runs every 4 hours)
 
-```
+```yaml
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: db-backup
+  name: bitwarden-backup
 spec:
-  schedule: "0 */4 * * *"
+  schedule: "0 0 * * *"
   successfulJobsHistoryLimit: 1
-  concurrencyPolicy: Forbid
+  concurrencyPolicy: Replace
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
@@ -73,34 +76,35 @@ spec:
               requiredDuringSchedulingIgnoredDuringExecution:
               - labelSelector:
                   matchExpressions:
-                  - key: app.kubernetes.io/instance
-                    operator: In
-                    values: 
-                    - my-vault
                   - key: app.kubernetes.io/name
                     operator: In
                     values: 
-                    - vaultwarden
+                    -  bitwarden-k8s
                 topologyKey: kubernetes.io/hostname
           containers:
           - name: backup
-            image: vaultwarden-s3-backup:latest
+            image: ghcr.io/cyberbugjr/vaultwarden-s3-backup:latest@sha256:----
             envFrom:
             - secretRef:
                 name: s3-backup
             env:
             - name: S3_PREFIX
-              value: somedb  
-            - name: S3_ENDPOINT
-              value: https://s3.xxxx
+              value: bitwarden
+            - name: AGE_KEY_FILE
+              value: /app/.age.key
             volumeMounts:
             - mountPath: "/data"
               name: data
               readOnly: true
+            - mountPath: "/app/.age.key"
+              name: age
+              readOnly: true
           restartPolicy: Never
           volumes:
           - name: data
-            persistentVolumeClaim:
-              claimName: test-client
-              readOnly: true
-```
+            hostPath:
+              path: /mnt/DEADPOOL/data/Bitwarden
+              type: Directory
+          - name: age
+            secret:
+              secretName: bitwarden-age-keys

@@ -9,7 +9,10 @@ RUN apk -q --no-cache --update add \
         gnupg \
         coreutils \        
         gzip \
-        sqlite \        
+        sqlite \
+        gpg \
+        envsubst \
+        age \
         aws-cli 
 
 RUN addgroup -S cloudbackup && adduser -S cloudbackup -G cloudbackup -u 1000

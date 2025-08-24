@@ -5,9 +5,10 @@ set -o pipefail
 function init_env() {
 
     BACKUP_DIR="/cloudbackup"
+    DATA_DIR="${DATA_DIR:-"/data"}"
 
     #DATA_DB
-    DATA_DB="${DATA_DB:-"${DATA_DIR}/db.sqlite3"}"
+    DATA_DB="${DATA_DIR}/db.sqlite3"
 
     # DATA_CONFIG
     DATA_CONFIG="${DATA_DIR}/config.json"
@@ -47,10 +48,9 @@ function init_env() {
     exit 1
     fi
 
-    if [ "${S3_ENDPOINT}" == "NONE" ]; then
-    AWS_ARGS=""
-    else
-    AWS_ARGS="--endpoint-url ${S3_ENDPOINT}"
+    if [ "${AGE_KEY_FILE}" = "NONE" ]; then
+    echo "You need to set the AGE_KEY_FILE environment variable."
+    exit 1
     fi
 
     # env vars needed for aws tools
