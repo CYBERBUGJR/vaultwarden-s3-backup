@@ -105,14 +105,14 @@ function backup() {
 }
 
 function upload() {
+    echo "Uploading dump to bucket $S3_BUCKET"
+    aws s3 cp "${BACKUP_FILE_GZIP}" s3://"$S3_BUCKET"/"$S3_PREFIX"/ || exit 2
+
     if [[ -n "${RETENTION}" ]]; then
         echo "Retention policy is set to ${RETENTION}"
         #update lifecycle configuration
         envsubst < lifecycle.json.tmpl > lifecycle.json
-        aws s3api put-bucket-lifecycle-configuration --bucket $S3_BUCKET --lifecycle-configuration file://lifecycle.json
-
-    echo "Uploading dump to bucket $S3_BUCKET"
-    aws s3 cp "${BACKUP_FILE_GZIP}" s3://"$S3_BUCKET"/"$S3_PREFIX"/ || exit 2
+        aws s3api put-bucket-lifecycle-configuration --bucket "$S3_BUCKET" --lifecycle-configuration file://lifecycle.json
     else
         echo "Retention policy is not set, not applying policy"
     fi
